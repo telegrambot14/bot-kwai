@@ -106,4 +106,8 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 print("🤖 Bot corriendo en Render...")
 
 # 🔥 evita conflictos de polling
-app.run_polling(drop_pending_updates=True)
+app.run_polling(
+    drop_pending_updates=True,
+    close_loop=False,
+    allowed_updates=Update.ALL_TYPES
+)
