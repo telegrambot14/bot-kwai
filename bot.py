@@ -39,20 +39,19 @@ async def descargar(url, outtmpl, formato):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
+    text = (update.message.text or "").strip()
 
-    # 🔥 EXTRAER LINKS AUTOMÁTICAMENTE (aunque venga texto)
+    # 🔥 EXTRAER LINK DESDE TEXTO (Kwai + texto)
     urls = re.findall(r'https?://\S+', text)
 
     if not urls:
-        await update.message.reply_text("❌ No encontré ningún link válido")
+        await update.message.reply_text("Pásame un link de Kwai")
         return
 
-    # Tomamos el primer link
     url = urls[0]
 
-    if "kwai" not in url.lower():
-        await update.message.reply_text("⚠️ Envíame un link de Kwai")
+    if not any(x in url.lower() for x in ["kwai", "k.kwai"]):
+        await update.message.reply_text("Pásame un link de Kwai")
         return
 
     await update.message.reply_text("📥 Procesando link...")
@@ -70,7 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Reintentando en calidad estándar...")
             filepath = await descargar(url, outtmpl, 'best')
 
-        # Ajustar a mp4 si es necesario
+        # Ajuste a mp4
         if not filepath.endswith(".mp4"):
             mp4_path = os.path.splitext(filepath)[0] + ".mp4"
             if os.path.exists(mp4_path):
@@ -90,7 +89,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error final: {str(e)}")
 
     finally:
-        # 🧹 limpieza
         for ext in [".mp4", ".webm", ".mkv"]:
             path = f"{base}{ext}"
             if os.path.exists(path):
@@ -104,10 +102,4 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 print("🤖 Bot corriendo en Render...")
-
-# 🔥 evita conflictos de polling
-app.run_polling(
-    drop_pending_updates=True,
-    close_loop=False,
-    allowed_updates=Update.ALL_TYPES
-)
+app.run_polling()
