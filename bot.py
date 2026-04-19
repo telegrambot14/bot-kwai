@@ -9,6 +9,30 @@ TOKEN = os.getenv("TOKEN")
 
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
+async def descargar(url, outtmpl, formato):
+    ydl_opts = {
+        'outtmpl': outtmpl,
+        'format': formato,
+        'merge_output_format': 'mp4',
+        'noplaylist': True,
+        'quiet': True,
+        'retries': 5,
+        'fragment_retries': 5,
+        'socket_timeout': 60,
+        'concurrent_fragment_downloads': 1,
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0'
+        }
+    }
+
+    def _download():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            return ydl.prepare_filename(info)
+
+    return await asyncio.to_thread(_download)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
 
@@ -21,38 +45,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     base = f"video_{uuid4().hex}"
     outtmpl = f"{base}.%(ext)s"
 
-    ydl_opts = {
-        'outtmpl': outtmpl,
-
-        # 🔥 FORMATO MÁS COMPATIBLE CON KWAI
-        'format': 'bv*+ba/b',
-
-        'merge_output_format': 'mp4',
-        'noplaylist': True,
-        'quiet': True,
-
-        # 🔥 MÁS TOLERANCIA A ERRORES
-        'retries': 5,
-        'fragment_retries': 5,
-        'socket_timeout': 30,
-
-        # 🔥 EVITA SATURAR RAILWAY
-        'concurrent_fragment_downloads': 1,
-
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0'
-        }
-    }
+    filepath = None
 
     try:
-        def _download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                return ydl.prepare_filename(info)
+        # 🔥 INTENTO 1 (mejor calidad posible)
+        try:
+            filepath = await descargar(url, outtmpl, 'bv*+ba/b')
+        except:
+            await update.message.reply_text("⚠️ Reintentando en calidad estándar...")
+            
+            # 🔥 INTENTO 2 (más estable)
+            filepath = await descargar(url, outtmpl, 'best')
 
-        filepath = await asyncio.to_thread(_download)
-
-        # Ajuste para asegurar mp4 final
+        # Ajuste extensión
         if not filepath.endswith(".mp4"):
             mp4_path = os.path.splitext(filepath)[0] + ".mp4"
             if os.path.exists(mp4_path):
@@ -69,7 +74,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_video(video=f)
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
+        await update.message.reply_text(f"❌ Error final: {str(e)}")
 
     finally:
         for ext in [".mp4", ".webm", ".mkv"]:
@@ -84,5 +89,5 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("🤖 Bot corriendo...")
+print("🤖 Bot corriendo en Render...")
 app.run_polling()
