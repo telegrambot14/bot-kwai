@@ -6,6 +6,16 @@ from uuid import uuid4
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+
+def keep_alive():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), BaseHTTPRequestHandler)
+    server.serve_forever()
+
+threading.Thread(target=keep_alive).start()
+
 TOKEN = os.getenv("TOKEN")
 
 if not TOKEN:
