@@ -7,6 +7,9 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 
 TOKEN = os.getenv("TOKEN")
 
+if not TOKEN:
+    raise ValueError("❌ TOKEN no encontrado en variables de entorno")
+
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
 async def descargar(url, outtmpl, formato):
