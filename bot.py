@@ -7,8 +7,6 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 
 TOKEN = os.getenv("TOKEN")
 
-
-# Límite práctico de envío por bot (ajusta si lo necesitas)
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -18,45 +16,52 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Pásame un link de Kwai")
         return
 
-    await update.message.reply_text("📥 Descargando en máxima calidad...")
+    await update.message.reply_text("📥 Procesando link...")
 
-    # nombre único por si llegan varios mensajes
     base = f"video_{uuid4().hex}"
     outtmpl = f"{base}.%(ext)s"
 
     ydl_opts = {
         'outtmpl': outtmpl,
-        'format': 'bestvideo+bestaudio/best',
+
+        # 🔥 FORMATO MÁS COMPATIBLE CON KWAI
+        'format': 'bv*+ba/b',
+
         'merge_output_format': 'mp4',
         'noplaylist': True,
         'quiet': True,
-        'retries': 3,
-        'fragment_retries': 3,
+
+        # 🔥 MÁS TOLERANCIA A ERRORES
+        'retries': 5,
+        'fragment_retries': 5,
+        'socket_timeout': 30,
+
+        # 🔥 EVITA SATURAR RAILWAY
+        'concurrent_fragment_downloads': 1,
+
         'http_headers': {
             'User-Agent': 'Mozilla/5.0'
         }
     }
 
     try:
-        # yt-dlp es bloqueante → muévelo a un hilo
         def _download():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                # obtener nombre final generado
                 return ydl.prepare_filename(info)
 
         filepath = await asyncio.to_thread(_download)
 
-        # Asegura extensión final mp4 si se fusionó
+        # Ajuste para asegurar mp4 final
         if not filepath.endswith(".mp4"):
-            # yt-dlp a veces devuelve el nombre previo; busca el mp4 real
             mp4_path = os.path.splitext(filepath)[0] + ".mp4"
             if os.path.exists(mp4_path):
                 filepath = mp4_path
 
         size = os.path.getsize(filepath)
 
-        # Si es grande, envía como documento (sin compresión)
+        await update.message.reply_text("📤 Enviando video...")
+
         with open(filepath, "rb") as f:
             if size > MAX_SIZE:
                 await update.message.reply_document(document=f)
@@ -67,7 +72,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
     finally:
-        # Limpieza segura
         for ext in [".mp4", ".webm", ".mkv"]:
             path = f"{base}{ext}"
             if os.path.exists(path):
