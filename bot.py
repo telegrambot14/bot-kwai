@@ -5,7 +5,8 @@ from uuid import uuid4
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-TOKEN = os.getenv("TOKEN") or "8725768395:AAFv03Bd-9P-7fAB3TDFbjtttHlRVePhGpU"
+TOKEN = os.getenv("TOKEN")
+
 
 # Límite práctico de envío por bot (ajusta si lo necesitas)
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
