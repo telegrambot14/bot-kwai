@@ -1,6 +1,7 @@
 import yt_dlp
 import os
 import asyncio
+import re
 from uuid import uuid4
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
@@ -11,6 +12,7 @@ if not TOKEN:
     raise ValueError("❌ TOKEN no encontrado en variables de entorno")
 
 MAX_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 async def descargar(url, outtmpl, formato):
     ydl_opts = {
@@ -37,10 +39,20 @@ async def descargar(url, outtmpl, formato):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text.strip()
+    text = update.message.text.strip()
+
+    # 🔥 EXTRAER LINKS AUTOMÁTICAMENTE (aunque venga texto)
+    urls = re.findall(r'https?://\S+', text)
+
+    if not urls:
+        await update.message.reply_text("❌ No encontré ningún link válido")
+        return
+
+    # Tomamos el primer link
+    url = urls[0]
 
     if "kwai" not in url.lower():
-        await update.message.reply_text("Pásame un link de Kwai")
+        await update.message.reply_text("⚠️ Envíame un link de Kwai")
         return
 
     await update.message.reply_text("📥 Procesando link...")
@@ -51,16 +63,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filepath = None
 
     try:
-        # 🔥 INTENTO 1 (mejor calidad posible)
+        # 🔥 INTENTO 1 (mejor calidad)
         try:
             filepath = await descargar(url, outtmpl, 'bv*+ba/b')
         except:
             await update.message.reply_text("⚠️ Reintentando en calidad estándar...")
-            
-            # 🔥 INTENTO 2 (más estable)
             filepath = await descargar(url, outtmpl, 'best')
 
-        # Ajuste extensión
+        # Ajustar a mp4 si es necesario
         if not filepath.endswith(".mp4"):
             mp4_path = os.path.splitext(filepath)[0] + ".mp4"
             if os.path.exists(mp4_path):
@@ -80,6 +90,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error final: {str(e)}")
 
     finally:
+        # 🧹 limpieza
         for ext in [".mp4", ".webm", ".mkv"]:
             path = f"{base}{ext}"
             if os.path.exists(path):
@@ -93,4 +104,6 @@ app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 print("🤖 Bot corriendo en Render...")
-app.run_polling()
+
+# 🔥 evita conflictos de polling
+app.run_polling(drop_pending_updates=True)
